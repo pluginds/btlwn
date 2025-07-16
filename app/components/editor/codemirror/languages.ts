@@ -1,6 +1,7 @@
 import { LanguageDescription } from '@codemirror/language';
 
 export const supportedLanguages = [
+  // Existing languages
   LanguageDescription.of({
     name: 'TS',
     extensions: ['ts'],
@@ -87,9 +88,66 @@ export const supportedLanguages = [
   }),
   LanguageDescription.of({
     name: 'C++',
-    extensions: ['cpp'],
+    extensions: ['cpp', 'cc', 'cxx', 'c++', 'hpp', 'hh', 'hxx', 'h++'],
     async load() {
       return import('@codemirror/lang-cpp').then((module) => module.cpp());
+    },
+  }),
+  // New languages
+  LanguageDescription.of({
+    name: 'Rust',
+    extensions: ['rs'],
+    async load() {
+      return import('@codemirror/lang-rust').then((module) => module.rust());
+    },
+  }),
+  LanguageDescription.of({
+    name: 'Go',
+    extensions: ['go'],
+    async load() {
+      return import('@codemirror/lang-go').then((module) => module.go());
+    },
+  }),
+  LanguageDescription.of({
+    name: 'Java',
+    extensions: ['java'],
+    async load() {
+      return import('@codemirror/lang-java').then((module) => module.java());
+    },
+  }),
+  LanguageDescription.of({
+    name: 'C#',
+    extensions: ['cs'],
+    async load() {
+      return import('@codemirror/lang-csharp').then((module) => module.csharp());
+    },
+  }),
+  LanguageDescription.of({
+    name: 'PHP',
+    extensions: ['php'],
+    async load() {
+      return import('@codemirror/lang-php').then((module) => module.php());
+    },
+  }),
+  LanguageDescription.of({
+    name: 'XML',
+    extensions: ['xml'],
+    async load() {
+      return import('@codemirror/lang-xml').then((module) => module.xml());
+    },
+  }),
+  LanguageDescription.of({
+    name: 'YAML',
+    extensions: ['yml', 'yaml'],
+    async load() {
+      return import('@codemirror/lang-yaml').then((module) => module.yaml());
+    },
+  }),
+  LanguageDescription.of({
+    name: 'SQL',
+    extensions: ['sql'],
+    async load() {
+      return import('@codemirror/lang-sql').then((module) => module.sql());
     },
   }),
 ];

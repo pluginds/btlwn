@@ -25,6 +25,8 @@ import { BinaryContent } from './BinaryContent';
 import { getTheme, reconfigureTheme } from './cm-theme';
 import { indentKeyBinding } from './indent';
 import { getLanguage } from './languages';
+import { enhancedAutocompletion } from './enhanced-autocomplete';
+import { debugExtension, DebugManager } from './debugging';
 
 const logger = createScopedLogger('CodeMirrorEditor');
 
@@ -39,6 +41,8 @@ export interface EditorSettings {
   fontSize?: string;
   gutterFontSize?: string;
   tabSize?: number;
+  enableDebugging?: boolean;
+  enableEnhancedAutocompletion?: boolean;
 }
 
 type TextEditorDocument = EditorDocument & {
@@ -58,6 +62,7 @@ export interface EditorUpdate {
 export type OnChangeCallback = (update: EditorUpdate) => void;
 export type OnScrollCallback = (position: ScrollPosition) => void;
 export type OnSaveCallback = () => void;
+export type OnDebugCallback = (manager: DebugManager) => void;
 
 interface Props {
   theme: Theme;
@@ -70,6 +75,7 @@ interface Props {
   onChange?: OnChangeCallback;
   onScroll?: OnScrollCallback;
   onSave?: OnSaveCallback;
+  onDebugReady?: OnDebugCallback;
   className?: string;
   settings?: EditorSettings;
 }
@@ -126,6 +132,7 @@ export const CodeMirrorEditor = memo(
     onScroll,
     onChange,
     onSave,
+    onDebugReady,
     theme,
     settings,
     className = '',
@@ -133,6 +140,7 @@ export const CodeMirrorEditor = memo(
     renderLogger.trace('CodeMirrorEditor');
 
     const [languageCompartment] = useState(new Compartment());
+    const [debugManager, setDebugManager] = useState<DebugManager | null>(null);
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const viewRef = useRef<EditorView>();
@@ -160,8 +168,95 @@ export const CodeMirrorEditor = memo(
         onChangeRef.current?.(update);
       }, debounceChange);
 
+      const extensions: Extension[] = [
+        EditorView.domEventHandlers({
+          scroll: debounce((event, view) => {
+            if (event.target !== view.scrollDOM) {
+              return;
+            }
+
+            onScrollRef.current?.({ left: view.scrollDOM.scrollLeft, top: view.scrollDOM.scrollTop });
+          }, debounceScroll),
+          keydown: (event, view) => {
+            if (view.state.readOnly) {
+              view.dispatch({
+                effects: [readOnlyTooltipStateEffect.of(event.key !== 'Escape')],
+              });
+
+              return true;
+            }
+
+            return false;
+          },
+        }),
+        getTheme(theme, settings),
+        history(),
+        keymap.of([
+          ...defaultKeymap,
+          ...historyKeymap,
+          ...searchKeymap,
+          { key: 'Tab', run: acceptCompletion },
+          {
+            key: 'Mod-s',
+            preventDefault: true,
+            run: () => {
+              onFileSaveRef.current?.();
+              return true;
+            },
+          },
+          indentKeyBinding,
+        ]),
+        indentUnit.of('\t'),
+        settings?.enableEnhancedAutocompletion !== false ? enhancedAutocompletion() : autocompletion({
+          closeOnBlur: false,
+        }),
+        tooltips({
+          position: 'absolute',
+          parent: document.body,
+          tooltipSpace: (view) => {
+            const rect = view.dom.getBoundingClientRect();
+
+            return {
+              top: rect.top - 50,
+              left: rect.left,
+              bottom: rect.bottom,
+              right: rect.right + 10,
+            };
+          },
+        }),
+        closeBrackets(),
+        lineNumbers(),
+        scrollPastEnd(),
+        dropCursor(),
+        drawSelection(),
+        bracketMatching(),
+        EditorState.tabSize.of(settings?.tabSize ?? 2),
+        indentOnInput(),
+        editableTooltipField,
+        editableStateField,
+        EditorState.readOnly.from(editableStateField, (editable) => !editable),
+        highlightActiveLineGutter(),
+        highlightActiveLine(),
+        foldGutter({
+          markerDOM: (open) => {
+            const icon = document.createElement('div');
+
+            icon.className = `fold-icon ${open ? 'i-ph-caret-down-bold' : 'i-ph-caret-right-bold'}`;
+
+            return icon;
+          },
+        }),
+        languageCompartment.of([]),
+      ];
+
+      // Add debugging extension if enabled
+      if (settings?.enableDebugging) {
+        extensions.push(debugExtension());
+      }
+
       const view = new EditorView({
         parent: containerRef.current!,
+        extensions,
         dispatchTransactions(transactions) {
           const previousSelection = view.state.selection;
 
@@ -185,6 +280,13 @@ export const CodeMirrorEditor = memo(
       });
 
       viewRef.current = view;
+
+      // Initialize debug manager if debugging is enabled
+      if (settings?.enableDebugging) {
+        const manager = new DebugManager(view);
+        setDebugManager(manager);
+        onDebugReady?.(manager);
+      }
 
       return () => {
         viewRef.current?.destroy();
@@ -275,88 +377,95 @@ function newEditorState(
   onFileSaveRef: MutableRefObject<OnSaveCallback | undefined>,
   extensions: Extension[],
 ) {
+  const baseExtensions = [
+    EditorView.domEventHandlers({
+      scroll: debounce((event, view) => {
+        if (event.target !== view.scrollDOM) {
+          return;
+        }
+
+        onScrollRef.current?.({ left: view.scrollDOM.scrollLeft, top: view.scrollDOM.scrollTop });
+      }, debounceScroll),
+      keydown: (event, view) => {
+        if (view.state.readOnly) {
+          view.dispatch({
+            effects: [readOnlyTooltipStateEffect.of(event.key !== 'Escape')],
+          });
+
+          return true;
+        }
+
+        return false;
+      },
+    }),
+    getTheme(theme, settings),
+    history(),
+    keymap.of([
+      ...defaultKeymap,
+      ...historyKeymap,
+      ...searchKeymap,
+      { key: 'Tab', run: acceptCompletion },
+      {
+        key: 'Mod-s',
+        preventDefault: true,
+        run: () => {
+          onFileSaveRef.current?.();
+          return true;
+        },
+      },
+      indentKeyBinding,
+    ]),
+    indentUnit.of('\t'),
+    settings?.enableEnhancedAutocompletion !== false ? enhancedAutocompletion() : autocompletion({
+      closeOnBlur: false,
+    }),
+    tooltips({
+      position: 'absolute',
+      parent: document.body,
+      tooltipSpace: (view) => {
+        const rect = view.dom.getBoundingClientRect();
+
+        return {
+          top: rect.top - 50,
+          left: rect.left,
+          bottom: rect.bottom,
+          right: rect.right + 10,
+        };
+      },
+    }),
+    closeBrackets(),
+    lineNumbers(),
+    scrollPastEnd(),
+    dropCursor(),
+    drawSelection(),
+    bracketMatching(),
+    EditorState.tabSize.of(settings?.tabSize ?? 2),
+    indentOnInput(),
+    editableTooltipField,
+    editableStateField,
+    EditorState.readOnly.from(editableStateField, (editable) => !editable),
+    highlightActiveLineGutter(),
+    highlightActiveLine(),
+    foldGutter({
+      markerDOM: (open) => {
+        const icon = document.createElement('div');
+
+        icon.className = `fold-icon ${open ? 'i-ph-caret-down-bold' : 'i-ph-caret-right-bold'}`;
+
+        return icon;
+      },
+    }),
+    ...extensions,
+  ];
+
+  // Add debugging extension if enabled
+  if (settings?.enableDebugging) {
+    baseExtensions.push(debugExtension());
+  }
+
   return EditorState.create({
     doc: content,
-    extensions: [
-      EditorView.domEventHandlers({
-        scroll: debounce((event, view) => {
-          if (event.target !== view.scrollDOM) {
-            return;
-          }
-
-          onScrollRef.current?.({ left: view.scrollDOM.scrollLeft, top: view.scrollDOM.scrollTop });
-        }, debounceScroll),
-        keydown: (event, view) => {
-          if (view.state.readOnly) {
-            view.dispatch({
-              effects: [readOnlyTooltipStateEffect.of(event.key !== 'Escape')],
-            });
-
-            return true;
-          }
-
-          return false;
-        },
-      }),
-      getTheme(theme, settings),
-      history(),
-      keymap.of([
-        ...defaultKeymap,
-        ...historyKeymap,
-        ...searchKeymap,
-        { key: 'Tab', run: acceptCompletion },
-        {
-          key: 'Mod-s',
-          preventDefault: true,
-          run: () => {
-            onFileSaveRef.current?.();
-            return true;
-          },
-        },
-        indentKeyBinding,
-      ]),
-      indentUnit.of('\t'),
-      autocompletion({
-        closeOnBlur: false,
-      }),
-      tooltips({
-        position: 'absolute',
-        parent: document.body,
-        tooltipSpace: (view) => {
-          const rect = view.dom.getBoundingClientRect();
-
-          return {
-            top: rect.top - 50,
-            left: rect.left,
-            bottom: rect.bottom,
-            right: rect.right + 10,
-          };
-        },
-      }),
-      closeBrackets(),
-      lineNumbers(),
-      scrollPastEnd(),
-      dropCursor(),
-      drawSelection(),
-      bracketMatching(),
-      EditorState.tabSize.of(settings?.tabSize ?? 2),
-      indentOnInput(),
-      editableTooltipField,
-      editableStateField,
-      EditorState.readOnly.from(editableStateField, (editable) => !editable),
-      highlightActiveLineGutter(),
-      highlightActiveLine(),
-      foldGutter({
-        markerDOM: (open) => {
-          const icon = document.createElement('div');
-
-          icon.className = `fold-icon ${open ? 'i-ph-caret-down-bold' : 'i-ph-caret-right-bold'}`;
-
-          return icon;
-        },
-      }),
-      ...extensions,
-    ],
+    extensions: baseExtensions,
   });
 }
 
