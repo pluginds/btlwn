@@ -6,9 +6,25 @@
 @import './components/code.scss';
 @import './components/editor.scss';
 @import './components/toast.scss';
+@import './components/mobile.scss';
 
 html,
 body {
   height: 100%;
   width: 100%;
+  
+  /* Enhanced scrollbar styling */
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: var(--bolt-elements-bg-depth-2);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--bolt-elements-borderColor);
+    border-radius: 4px;
+  }
 }

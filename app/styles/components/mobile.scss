@@ -1,0 +1,85 @@
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  .workbench {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+  }
+
+  .mobile-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    
+    &.open {
+      transform: translateX(0);
+    }
+  }
+
+  .mobile-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+
+  .chat-container {
+    padding: 1rem;
+  }
+
+  .editor-panel {
+    .file-tree {
+      display: none;
+    }
+  }
+
+  .terminal-panel {
+    height: 40vh;
+    max-height: 40vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .workbench-header {
+    padding: 0.5rem;
+    
+    .slider {
+      font-size: 0.75rem;
+    }
+  }
+
+  .panel-header {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .code-editor {
+    font-size: 12px;
+  }
+
+  .terminal {
+    font-size: 11px;
+  }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+  .icon-button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .panel-resize-handle {
+    width: 12px;
+    height: 12px;
+  }
+
+  .file-tree-item {
+    padding: 0.75rem 0.5rem;
+  }
+}

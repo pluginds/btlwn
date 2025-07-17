@@ -1,5 +1,6 @@
 import { useStore } from '@nanostores/react';
-import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { computed } from 'nanostores';
 import { memo, useCallback, useEffect } from 'react';
 import { toast } from 'react-toastify';
@@ -7,15 +8,18 @@ import {
   type OnChangeCallback as OnEditorChange,
   type OnScrollCallback as OnEditorScroll,
 } from '~/components/editor/codemirror/CodeMirrorEditor';
-import { IconButton } from '~/components/ui/IconButton';
-import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
-import { Slider, type SliderOptions } from '~/components/ui/Slider';
+import { MobileResponsiveLayout } from '~/components/ui/MobileResponsiveLayout';
+import { ThemeCustomizer } from '~/components/ui/ThemeCustomizer';
 import { workbenchStore, type WorkbenchViewType } from '~/lib/stores/workbench';
 import { classNames } from '~/utils/classNames';
 import { cubicEasingFn } from '~/utils/easings';
 import { renderLogger } from '~/utils/logger';
-import { EditorPanel } from './EditorPanel';
+import { isMobile } from '~/utils/mobile';
+import { CustomizableWorkspace } from './CustomizableWorkspace';
+import { DragDropFileManager } from './DragDropFileManager';
+import { FrameworkIntegration } from './FrameworkIntegration';
 import { Preview } from './Preview';
+import { SplitScreenLayout } from './SplitScreenLayout';
 
 interface WorkspaceProps {
   chatStarted?: boolean;
@@ -23,17 +27,6 @@ interface WorkspaceProps {
 }
 
 const viewTransition = { ease: cubicEasingFn };
-
-const sliderOptions: SliderOptions<WorkbenchViewType> = {
-  left: {
-    value: 'code',
-    text: 'Code',
-  },
-  right: {
-    value: 'preview',
-    text: 'Preview',
-  },
-};
 
 const workbenchVariants = {
   closed: {
@@ -55,48 +48,39 @@ const workbenchVariants = {
 export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => {
   renderLogger.trace('Workbench');
 
-  const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
   const showWorkbench = useStore(workbenchStore.showWorkbench);
-  const selectedFile = useStore(workbenchStore.selectedFile);
-  const currentDocument = useStore(workbenchStore.currentDocument);
-  const unsavedFiles = useStore(workbenchStore.unsavedFiles);
   const files = useStore(workbenchStore.files);
-  const selectedView = useStore(workbenchStore.currentView);
-
-  const setSelectedView = (view: WorkbenchViewType) => {
-    workbenchStore.currentView.set(view);
-  };
-
-  useEffect(() => {
-    if (hasPreview) {
-      setSelectedView('preview');
-    }
-  }, [hasPreview]);
 
   useEffect(() => {
     workbenchStore.setDocuments(files);
   }, [files]);
 
-  const onEditorChange = useCallback<OnEditorChange>((update) => {
-    workbenchStore.setCurrentDocumentContent(update.content);
+  const handleFileUpload = useCallback((files: FileList) => {
+    // Handle file upload logic
+    console.log('Files uploaded:', files);
+    toast.success(`${files.length} file(s) uploaded successfully`);
   }, []);
 
-  const onEditorScroll = useCallback<OnEditorScroll>((position) => {
-    workbenchStore.setCurrentDocumentScrollPosition(position);
+  const handleFolderCreate = useCallback((name: string) => {
+    // Handle folder creation logic
+    console.log('Create folder:', name);
+    toast.success(`Folder "${name}" created`);
   }, []);
 
-  const onFileSelect = useCallback((filePath: string | undefined) => {
-    workbenchStore.setSelectedFile(filePath);
+  const handleFileCreate = useCallback((name: string) => {
+    // Handle file creation logic
+    console.log('Create file:', name);
+    toast.success(`File "${name}" created`);
   }, []);
 
-  const onFileSave = useCallback(() => {
-    workbenchStore.saveCurrentDocument().catch(() => {
-      toast.error('Failed to update file content');
-    });
+  const handleFrameworkSelect = useCallback((framework: any) => {
+    console.log('Framework selected:', framework);
+    toast.success(`${framework.name} framework selected`);
   }, []);
 
-  const onFileReset = useCallback(() => {
-    workbenchStore.resetCurrentDocument();
+  const handleCommandRun = useCallback((command: string) => {
+    console.log('Run command:', command);
+    toast.info(`Running: ${command}`);
   }, []);
 
   return (
@@ -107,7 +91,7 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
         variants={workbenchVariants}
         className="z-workbench"
       >
-        <div
+        <MobileResponsiveLayout
           className={classNames(
             'fixed top-[calc(var(--header-height)+1.5rem)] bottom-6 w-[var(--workbench-inner-width)] mr-4 z-0 transition-[left,width] duration-200 bolt-ease-cubic-bezier',
             {
@@ -115,73 +99,32 @@ export const Workbench = memo(({ chatStarted, isStreaming }: WorkspaceProps) => 
               'left-[100%]': !showWorkbench,
             },
           )}
-        >
-          <div className="absolute inset-0 px-6">
-            <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
-              <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor">
-                <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
-                <div className="ml-auto" />
-                {selectedView === 'code' && (
-                  <PanelHeaderButton
-                    className="mr-1 text-sm"
-                    onClick={() => {
-                      workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get());
-                    }}
-                  >
-                    <div className="i-ph:terminal" />
-                    Toggle Terminal
-                  </PanelHeaderButton>
-                )}
-                <IconButton
-                  icon="i-ph:x-circle"
-                  className="-mr-1"
-                  size="xl"
-                  onClick={() => {
-                    workbenchStore.showWorkbench.set(false);
-                  }}
-                />
-              </div>
-              <div className="relative flex-1 overflow-hidden">
-                <View
-                  initial={{ x: selectedView === 'code' ? 0 : '-100%' }}
-                  animate={{ x: selectedView === 'code' ? 0 : '-100%' }}
-                >
-                  <EditorPanel
-                    editorDocument={currentDocument}
-                    isStreaming={isStreaming}
-                    selectedFile={selectedFile}
-                    files={files}
-                    unsavedFiles={unsavedFiles}
-                    onFileSelect={onFileSelect}
-                    onEditorScroll={onEditorScroll}
-                    onEditorChange={onEditorChange}
-                    onFileSave={onFileSave}
-                    onFileReset={onFileReset}
-                  />
-                </View>
-                <View
-                  initial={{ x: selectedView === 'preview' ? 0 : '100%' }}
-                  animate={{ x: selectedView === 'preview' ? 0 : '100%' }}
-                >
-                  <Preview />
-                </View>
-              </div>
+          sidebar={
+            <div className="w-64 h-full">
+              <FrameworkIntegration
+                onFrameworkSelect={handleFrameworkSelect}
+                onCommandRun={handleCommandRun}
+                className="border-b border-bolt-elements-borderColor"
+              />
+              <DragDropFileManager
+                onFileUpload={handleFileUpload}
+                onFolderCreate={handleFolderCreate}
+                onFileCreate={handleFileCreate}
+              />
             </div>
-          </div>
-        </div>
+          }
+          header={
+            <div className="flex items-center justify-between p-2">
+              <h2 className="text-lg font-semibold text-bolt-elements-textPrimary">Workbench</h2>
+              <ThemeCustomizer />
+            </div>
+          }
+        >
+          <CustomizableWorkspace className="h-full">
+            <SplitScreenLayout chatStarted={chatStarted} isStreaming={isStreaming} />
+          </CustomizableWorkspace>
+        </MobileResponsiveLayout>
       </motion.div>
     )
-  );
-});
-
-interface ViewProps extends HTMLMotionProps<'div'> {
-  children: JSX.Element;
-}
-
-const View = memo(({ children, ...props }: ViewProps) => {
-  return (
-    <motion.div className="absolute inset-0" transition={viewTransition} {...props}>
-      {children}
-    </motion.div>
   );
 });
