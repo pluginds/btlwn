@@ -25,8 +25,6 @@ import { BinaryContent } from './BinaryContent';
 import { getTheme, reconfigureTheme } from './cm-theme';
 import { indentKeyBinding } from './indent';
 import { getLanguage } from './languages';
-import { enhancedAutocompletion } from './enhanced-autocomplete';
-import { debugExtension, DebugManager } from './debugging';
 
 const logger = createScopedLogger('CodeMirrorEditor');
 
@@ -62,7 +60,6 @@ export interface EditorUpdate {
 export type OnChangeCallback = (update: EditorUpdate) => void;
 export type OnScrollCallback = (position: ScrollPosition) => void;
 export type OnSaveCallback = () => void;
-export type OnDebugCallback = (manager: DebugManager) => void;
 
 interface Props {
   theme: Theme;
@@ -75,7 +72,6 @@ interface Props {
   onChange?: OnChangeCallback;
   onScroll?: OnScrollCallback;
   onSave?: OnSaveCallback;
-  onDebugReady?: OnDebugCallback;
   className?: string;
   settings?: EditorSettings;
 }
@@ -132,7 +128,6 @@ export const CodeMirrorEditor = memo(
     onScroll,
     onChange,
     onSave,
-    onDebugReady,
     theme,
     settings,
     className = '',
@@ -140,7 +135,6 @@ export const CodeMirrorEditor = memo(
     renderLogger.trace('CodeMirrorEditor');
 
     const [languageCompartment] = useState(new Compartment());
-    const [debugManager, setDebugManager] = useState<DebugManager | null>(null);
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const viewRef = useRef<EditorView>();
@@ -207,7 +201,7 @@ export const CodeMirrorEditor = memo(
           indentKeyBinding,
         ]),
         indentUnit.of('\t'),
-        settings?.enableEnhancedAutocompletion !== false ? enhancedAutocompletion() : autocompletion({
+        autocompletion({
           closeOnBlur: false,
         }),
         tooltips({
@@ -249,10 +243,6 @@ export const CodeMirrorEditor = memo(
         languageCompartment.of([]),
       ];
 
-      // Add debugging extension if enabled
-      if (settings?.enableDebugging) {
-        extensions.push(debugExtension());
-      }
 
       const view = new EditorView({
         parent: containerRef.current!,
@@ -281,12 +271,6 @@ export const CodeMirrorEditor = memo(
 
       viewRef.current = view;
 
-      // Initialize debug manager if debugging is enabled
-      if (settings?.enableDebugging) {
-        const manager = new DebugManager(view);
-        setDebugManager(manager);
-        onDebugReady?.(manager);
-      }
 
       return () => {
         viewRef.current?.destroy();

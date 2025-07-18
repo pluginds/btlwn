@@ -24,8 +24,6 @@ import { isMobile } from '~/utils/mobile';
 import { FileBreadcrumb } from './FileBreadcrumb';
 import { FileTree } from './FileTree';
 import { Terminal, type TerminalRef } from './terminal/Terminal';
-import { DebugPanel } from './DebugPanel';
-import type { DebugManager } from '../editor/codemirror/debugging';
 
 interface EnhancedEditorPanelProps {
   files?: FileMap;
@@ -47,8 +45,6 @@ const DEFAULT_DEBUG_PANEL_SIZE = 25;
 
 const editorSettings: EditorSettings = { 
   tabSize: 2,
-  enableDebugging: true,
-  enableEnhancedAutocompletion: true,
 };
 
 export const EnhancedEditorPanel = memo(
@@ -76,8 +72,6 @@ export const EnhancedEditorPanel = memo(
 
     const [activeTerminal, setActiveTerminal] = useState(0);
     const [terminalCount, setTerminalCount] = useState(1);
-    const [showDebugPanel, setShowDebugPanel] = useState(false);
-    const [debugManager, setDebugManager] = useState<DebugManager | undefined>();
 
     const activeFileSegments = useMemo(() => {
       if (!editorDocument) {
@@ -186,10 +180,6 @@ export const EnhancedEditorPanel = memo(
                           <div className="i-ph:clock-counter-clockwise-duotone" />
                           Reset
                         </PanelHeaderButton>
-                        <PanelHeaderButton onClick={toggleDebugPanel}>
-                          <div className="i-ph:bug-duotone" />
-                          Debug
-                        </PanelHeaderButton>
                       </div>
                     )}
                   </div>
@@ -205,7 +195,6 @@ export const EnhancedEditorPanel = memo(
                   onScroll={onEditorScroll}
                   onChange={onEditorChange}
                   onSave={onFileSave}
-                  onDebugReady={handleDebugReady}
                 />
               </div>
             </Panel>

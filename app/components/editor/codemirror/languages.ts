@@ -1,7 +1,7 @@
-import { LanguageDescription } from '@codemirror/language';
+import { LanguageDescription, StreamLanguage } from '@codemirror/language';
 
 export const supportedLanguages = [
-  // Existing languages
+  // JavaScript/TypeScript
   LanguageDescription.of({
     name: 'TS',
     extensions: ['ts'],
@@ -30,6 +30,8 @@ export const supportedLanguages = [
       return import('@codemirror/lang-javascript').then((module) => module.javascript({ jsx: true }));
     },
   }),
+
+  // Web languages
   LanguageDescription.of({
     name: 'HTML',
     extensions: ['html'],
@@ -58,6 +60,8 @@ export const supportedLanguages = [
       return import('@codemirror/lang-sass').then((module) => module.sass({ indented: false }));
     },
   }),
+
+  // Data formats
   LanguageDescription.of({
     name: 'JSON',
     extensions: ['json'],
@@ -72,13 +76,8 @@ export const supportedLanguages = [
       return import('@codemirror/lang-markdown').then((module) => module.markdown());
     },
   }),
-  LanguageDescription.of({
-    name: 'Wasm',
-    extensions: ['wat'],
-    async load() {
-      return import('@codemirror/lang-wast').then((module) => module.wast());
-    },
-  }),
+
+  // Other supported languages
   LanguageDescription.of({
     name: 'Python',
     extensions: ['py'],
@@ -93,61 +92,77 @@ export const supportedLanguages = [
       return import('@codemirror/lang-cpp').then((module) => module.cpp());
     },
   }),
-  // New languages
+  LanguageDescription.of({
+    name: 'Wasm',
+    extensions: ['wat'],
+    async load() {
+      return import('@codemirror/lang-wast').then((module) => module.wast());
+    },
+  }),
+
+  // Legacy mode languages
   LanguageDescription.of({
     name: 'Rust',
     extensions: ['rs'],
     async load() {
-      return import('@codemirror/lang-rust').then((module) => module.rust());
+      const { rust } = await import('@codemirror/legacy-modes/mode/rust');
+      return StreamLanguage.define(rust);
     },
   }),
   LanguageDescription.of({
     name: 'Go',
     extensions: ['go'],
     async load() {
-      return import('@codemirror/lang-go').then((module) => module.go());
+      const { go } = await import('@codemirror/legacy-modes/mode/go');
+      return StreamLanguage.define(go);
     },
   }),
   LanguageDescription.of({
     name: 'Java',
     extensions: ['java'],
     async load() {
-      return import('@codemirror/lang-java').then((module) => module.java());
+      const { java } = await import('@codemirror/legacy-modes/mode/clike');
+      return StreamLanguage.define(java);
     },
   }),
   LanguageDescription.of({
     name: 'C#',
     extensions: ['cs'],
     async load() {
-      return import('@codemirror/lang-csharp').then((module) => module.csharp());
+      const { csharp } = await import('@codemirror/legacy-modes/mode/clike');
+      return StreamLanguage.define(csharp);
     },
   }),
   LanguageDescription.of({
     name: 'PHP',
     extensions: ['php'],
     async load() {
-      return import('@codemirror/lang-php').then((module) => module.php());
+      const { php } = await import('@codemirror/legacy-modes/mode/php');
+      return StreamLanguage.define(php);
     },
   }),
   LanguageDescription.of({
     name: 'XML',
     extensions: ['xml'],
     async load() {
-      return import('@codemirror/lang-xml').then((module) => module.xml());
+      const { xml } = await import('@codemirror/legacy-modes/mode/xml');
+      return StreamLanguage.define(xml);
     },
   }),
   LanguageDescription.of({
     name: 'YAML',
     extensions: ['yml', 'yaml'],
     async load() {
-      return import('@codemirror/lang-yaml').then((module) => module.yaml());
+      const { yaml } = await import('@codemirror/legacy-modes/mode/yaml');
+      return StreamLanguage.define(yaml);
     },
   }),
   LanguageDescription.of({
     name: 'SQL',
     extensions: ['sql'],
     async load() {
-      return import('@codemirror/lang-sql').then((module) => module.sql());
+      const { sql } = await import('@codemirror/legacy-modes/mode/sql');
+      return StreamLanguage.define(sql);
     },
   }),
 ];
@@ -156,7 +171,12 @@ export async function getLanguage(fileName: string) {
   const languageDescription = LanguageDescription.matchFilename(supportedLanguages, fileName);
 
   if (languageDescription) {
-    return await languageDescription.load();
+    try {
+      return await languageDescription.load();
+    } catch (error) {
+      console.warn(`Failed to load language for ${fileName}:`, error);
+      return undefined;
+    }
   }
 
   return undefined;
